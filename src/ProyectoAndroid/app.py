@@ -58,21 +58,139 @@ class LoginLocal(toga.App):
         self.mostrar_login()
         self.main_window.show()
 
-    def _pantalla(self, titulo, controles):
-        self.mensaje = toga.Label("", style=Pack(padding_top=10))
-        self.main_window.content = toga.Box(
-            style=Pack(direction=COLUMN, padding=30),
-            children=[toga.Label(titulo, style=Pack(padding_bottom=20)), *controles, self.mensaje],
+    # La interfaz reproduce el carácter limpio, fresco y redondeado del HTML de
+    # referencia usando únicamente widgets nativos, para que funcione también
+    # en Android, Windows, macOS, Linux y web.
+    COLOR_FONDO = "#e9faff"
+    COLOR_TEXTO = "#164e63"
+    COLOR_SECUNDARIO = "#64748b"
+    COLOR_ACCION = "#0891b2"
+    COLOR_MENTA = "#2dd4bf"
+
+    def _campo(self, placeholder, password=False):
+        """Crea un campo amplio y consistente con el diseño del login."""
+        control = (
+            toga.PasswordInput(placeholder=placeholder)
+            if password
+            else toga.TextInput(placeholder=placeholder)
+        )
+        control.style = Pack(
+            color=self.COLOR_TEXTO,
+            background_color="#ffffff",
+            height=54,
+            padding=14,
+        )
+        return control
+
+    def _etiqueta(self, texto):
+        return toga.Label(
+            texto,
+            style=Pack(
+                color=self.COLOR_TEXTO,
+                font_size=14,
+                font_weight="bold",
+                padding_bottom=7,
+            ),
         )
 
+    def _boton_principal(self, texto, accion):
+        return toga.Button(
+            texto,
+            on_press=accion,
+            style=Pack(
+                color="#ffffff",
+                background_color=self.COLOR_MENTA,
+                font_size=16,
+                font_weight="bold",
+                height=54,
+                padding_top=14,
+                padding_bottom=14,
+            ),
+        )
+
+    def _boton_enlace(self, texto, accion, alineacion="center"):
+        return toga.Button(
+            texto,
+            on_press=accion,
+            style=Pack(
+                color=self.COLOR_ACCION,
+                background_color=self.COLOR_FONDO,
+                font_size=14,
+                font_weight="bold",
+                text_align=alineacion,
+                padding_top=6,
+                padding_bottom=6,
+            ),
+        )
+
+    def _pantalla(self, titulo, subtitulo, controles):
+        """Construye una tarjeta centrada con la identidad visual del HTML."""
+        self.mensaje = toga.Label(
+            "",
+            style=Pack(color=self.COLOR_ACCION, font_size=14, padding_top=12, text_align="center"),
+        )
+
+        encabezado = toga.Box(
+            style=Pack(direction=COLUMN, alignment="center", padding_bottom=28),
+            children=[
+                toga.Label(
+                    "🌡",
+                    style=Pack(font_size=38, text_align="center", padding_bottom=18),
+                ),
+                toga.Label(
+                    titulo,
+                    style=Pack(
+                        color=self.COLOR_TEXTO,
+                        font_size=30,
+                        font_weight="bold",
+                        text_align="center",
+                        padding_bottom=8,
+                    ),
+                ),
+                toga.Label(
+                    subtitulo,
+                    style=Pack(color=self.COLOR_SECUNDARIO, font_size=15, text_align="center"),
+                ),
+            ],
+        )
+
+        tarjeta = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                width=360,
+                background_color="#f7ffff",
+                padding_top=42,
+                padding_right=30,
+                padding_bottom=38,
+                padding_left=30,
+            ),
+            children=[encabezado, *controles, self.mensaje],
+        )
+        contenedor = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                flex=1,
+                alignment="center",
+                background_color=self.COLOR_FONDO,
+                padding=24,
+            ),
+            children=[tarjeta],
+        )
+        self.main_window.content = contenedor
+
     def mostrar_login(self, widget=None):
-        self.correo = toga.TextInput(placeholder="Correo electrónico", style=Pack(padding_bottom=10))
-        self.contrasena = toga.PasswordInput(placeholder="Contraseña", style=Pack(padding_bottom=10))
-        self._pantalla("Iniciar sesión", [
-            self.correo, self.contrasena,
-            toga.Button("Ingresar", on_press=self.iniciar_sesion, style=Pack(padding_bottom=10)),
-            toga.Button("Crear cuenta", on_press=self.mostrar_registro),
-            toga.Button("Olvidé mi contraseña", on_press=self.mostrar_recuperar),
+        self.correo = self._campo("Ingresa tu correo electrónico")
+        self.contrasena = self._campo("Ingresa tu contraseña", password=True)
+        self._pantalla("Bienvenido", "Ingresa para continuar", [
+            self._etiqueta("Correo electrónico"), self.correo,
+            self._etiqueta("Contraseña"), self.contrasena,
+            self._boton_enlace("¿Olvidaste tu contraseña?", self.mostrar_recuperar, "right"),
+            self._boton_principal("INGRESAR", self.iniciar_sesion),
+            self._boton_enlace("Crear cuenta", self.mostrar_registro),
+            toga.Label(
+                "Una experiencia fresca y sencilla",
+                style=Pack(color="#94a3b8", font_size=13, text_align="center", padding_top=22),
+            ),
         ])
 
     def iniciar_sesion(self, widget):
@@ -85,31 +203,42 @@ class LoginLocal(toga.App):
 
     def mostrar_bienvenida(self, correo):
         nombre = obtener_nombre(self, correo) or correo
-        self._pantalla("Bienvenido", [
-            toga.Label(f"Bienvenido, {nombre}"),
-            toga.Button("Cerrar sesión", on_press=self.mostrar_login,
-                        style=Pack(padding_top=10)),
+        self._pantalla("Bienvenido", "Has iniciado sesión correctamente", [
+            toga.Label(
+                f"Hola, {nombre}",
+                style=Pack(color=self.COLOR_TEXTO, font_size=18, text_align="center", padding_bottom=22),
+            ),
+            self._boton_principal("CERRAR SESIÓN", self.mostrar_login),
         ])
 
     def mostrar_registro(self, widget):
-        self.nombre = toga.TextInput(placeholder="Nombre", style=Pack(padding_bottom=10))
-        self.correo_registro = toga.TextInput(placeholder="Correo electrónico", style=Pack(padding_bottom=10))
-        self.password_registro = toga.PasswordInput(placeholder="Contraseña segura", style=Pack(padding_bottom=10))
-        self._pantalla("Crear cuenta", [self.nombre, self.correo_registro, self.password_registro,
-            toga.Button("Crear cuenta", on_press=self.registrar), toga.Button("Volver", on_press=self.mostrar_login)])
+        self.nombre = self._campo("Ingresa tu nombre")
+        self.correo_registro = self._campo("Ingresa tu correo electrónico")
+        self.password_registro = self._campo("Crea una contraseña segura", password=True)
+        self._pantalla("Crear cuenta", "Completa tus datos para registrarte", [
+            self._etiqueta("Nombre"), self.nombre,
+            self._etiqueta("Correo electrónico"), self.correo_registro,
+            self._etiqueta("Contraseña"), self.password_registro,
+            self._boton_principal("CREAR CUENTA", self.registrar),
+            self._boton_enlace("Volver al inicio de sesión", self.mostrar_login),
+        ])
 
     def registrar(self, widget):
         _, mensaje = crear_usuario(self, self.nombre.value or "", self.correo_registro.value or "", self.password_registro.value or "")
         self.mensaje.text = mensaje
 
     def mostrar_recuperar(self, widget):
-        self.correo_recuperacion = toga.TextInput(placeholder="Correo electrónico", style=Pack(padding_bottom=10))
-        self.codigo_recuperacion = toga.PasswordInput(placeholder="Código de 6 dígitos", style=Pack(padding_bottom=10))
-        self.nueva_contrasena = toga.PasswordInput(placeholder="Nueva contraseña segura", style=Pack(padding_bottom=10))
-        self._pantalla("Recuperar contraseña", [self.correo_recuperacion, self.codigo_recuperacion,
-            self.nueva_contrasena, toga.Button("Enviar código", on_press=self.solicitar_codigo),
-            toga.Button("Guardar nueva contraseña", on_press=self.cambiar_contrasena),
-            toga.Button("Volver", on_press=self.mostrar_login)])
+        self.correo_recuperacion = self._campo("Ingresa tu correo electrónico")
+        self.codigo_recuperacion = self._campo("Código de 6 dígitos", password=True)
+        self.nueva_contrasena = self._campo("Nueva contraseña segura", password=True)
+        self._pantalla("Recuperar contraseña", "Te ayudaremos a volver a entrar", [
+            self._etiqueta("Correo electrónico"), self.correo_recuperacion,
+            self._boton_principal("ENVIAR CÓDIGO", self.solicitar_codigo),
+            self._etiqueta("Código de recuperación"), self.codigo_recuperacion,
+            self._etiqueta("Nueva contraseña"), self.nueva_contrasena,
+            self._boton_principal("GUARDAR CONTRASEÑA", self.cambiar_contrasena),
+            self._boton_enlace("Volver al inicio de sesión", self.mostrar_login),
+        ])
 
     def solicitar_codigo(self, widget):
         if not smtp_configurado():
