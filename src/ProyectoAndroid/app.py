@@ -1,10 +1,14 @@
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN
+from .database import crear_bd
 
 
 class LoginLocal(toga.App):
+    
     def startup(self):
+        
+        crear_bd(self)
         self.password_actual = "123456"
 
         self.main_window = toga.MainWindow(title=self.formal_name)
