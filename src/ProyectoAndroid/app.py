@@ -1,6 +1,8 @@
 import os
+import json
 import smtplib
 from email.message import EmailMessage
+from pathlib import Path
 
 import toga
 from toga.style import Pack
@@ -78,7 +80,8 @@ class LoginLocal(toga.App):
             color=self.COLOR_TEXTO,
             background_color="#ffffff",
             height=54,
-            padding=14,
+            padding_left=16,
+            padding_right=16,
         )
         return control
 
@@ -133,9 +136,17 @@ class LoginLocal(toga.App):
         encabezado = toga.Box(
             style=Pack(direction=COLUMN, alignment="center", padding_bottom=28),
             children=[
-                toga.Label(
-                    "🌡",
-                    style=Pack(font_size=38, text_align="center", padding_bottom=18),
+                toga.Box(
+                    style=Pack(
+                        width=72,
+                        height=72,
+                        alignment="center",
+                        background_color="#38bdf8",
+                        padding=12,
+                    ),
+                    children=[
+                        toga.Label("🌡", style=Pack(font_size=30, text_align="center")),
+                    ],
                 ),
                 toga.Label(
                     titulo,
@@ -157,8 +168,8 @@ class LoginLocal(toga.App):
         tarjeta = toga.Box(
             style=Pack(
                 direction=COLUMN,
-                width=360,
-                background_color="#f7ffff",
+                flex=1,
+                background_color="#ffffff",
                 padding_top=42,
                 padding_right=30,
                 padding_bottom=38,
@@ -179,10 +190,107 @@ class LoginLocal(toga.App):
         self.main_window.content = contenedor
 
     def mostrar_login(self, widget=None):
-        self.correo = self._campo("Ingresa tu correo electrónico")
+        self.mostrar_login_webview()
+        return
+
+    def mostrar_login_webview(self):
+        html = self._leer_html("login.html")
+        self.login_html = html
+        self.login_webview = toga.WebView(
+            style=Pack(flex=1),
+            content=html,
+            on_navigation_starting=self._webview_navegacion,
+        )
+        self.main_window.content = self.login_webview
+
+    def _leer_html(self, nombre):
+        return Path(__file__).with_name(nombre).read_text(encoding="utf-8")
+
+    def _mostrar_webview(self, html, nombre):
+        self.webview_html = html
+        self.webview_nombre = nombre
+        self.login_webview = toga.WebView(
+            style=Pack(flex=1),
+            content=html,
+            on_navigation_starting=self._webview_navegacion,
+        )
+        self.main_window.content = self.login_webview
+
+    def mostrar_recuperar_webview(self):
+        self._mostrar_webview(self._leer_html("recuperar.html"), "recuperar.html")
+
+    def _webview_aviso(self, mensaje):
+        aviso = json.dumps(mensaje)
+        self.login_webview.content = self.webview_html.replace(
+            "</body>",
+            f"<script>alert({aviso});</script></body>",
+        )
+
+    def _webview_navegacion(self, url):
+        url = str(url)
+        if not url.startswith("joan://"):
+            return True
+
+        from urllib.parse import parse_qs, urlparse
+
+        datos = parse_qs(urlparse(url).query)
+        accion = urlparse(url).netloc
+        if accion == "login":
+            correo = datos.get("usuario", [""])[0].strip()
+            password = datos.get("password", [""])[0]
+            correcto, mensaje = autenticar(self, correo, password)
+            if correcto:
+                self.mostrar_bienvenida(correo)
+            else:
+                aviso = json.dumps(mensaje)
+                self.login_webview.content = self.login_html.replace(
+                    "</body>",
+                    f"<script>alert({aviso});</script></body>",
+                )
+            return False
+        if accion == "forgot":
+            self.mostrar_recuperar_webview()
+            return False
+        if accion == "back":
+            self.mostrar_login_webview()
+            return False
+        if accion == "send-code":
+            if not smtp_configurado():
+                self._webview_aviso(
+                    "La recuperación no está configurada. Define SMTP_HOST, SMTP_USER y SMTP_PASSWORD."
+                )
+                return False
+            correo = datos.get("correo", [""])[0].strip()
+            preparado, codigo, mensaje = preparar_recuperacion(self, correo)
+            if preparado and not enviar_codigo_por_correo(correo, codigo):
+                mensaje = "No se pudo enviar el código. Configura SMTP e inténtalo de nuevo."
+            self._webview_aviso(mensaje)
+            return False
+        if accion == "reset-password":
+            correo = datos.get("correo", [""])[0].strip()
+            codigo = datos.get("codigo", [""])[0].strip()
+            password = datos.get("password", [""])[0]
+            correcto, mensaje = cambiar_password_con_codigo(
+                self, correo, codigo, password
+            )
+            if correcto:
+                self.mostrar_login_webview()
+            else:
+                self._webview_aviso(mensaje)
+            return False
+        return False
+
+    def iniciar_sesion_webview(self, usuario, password):
+        correcto, mensaje = autenticar(self, usuario, password)
+        if correcto:
+            self.mostrar_bienvenida(usuario)
+        return mensaje
+
+    def mostrar_login_nativo(self):
+        self.correo = self._campo("Ingresa tu usuario")
         self.contrasena = self._campo("Ingresa tu contraseña", password=True)
         self._pantalla("Bienvenido", "Ingresa para continuar", [
-            self._etiqueta("Correo electrónico"), self.correo,
+            self._etiqueta("Usuario"), self.correo,
             self._etiqueta("Contraseña"), self.contrasena,
             self._boton_enlace("¿Olvidaste tu contraseña?", self.mostrar_recuperar, "right"),
             self._boton_principal("INGRESAR", self.iniciar_sesion),
@@ -227,7 +335,7 @@ class LoginLocal(toga.App):
         _, mensaje = crear_usuario(self, self.nombre.value or "", self.correo_registro.value or "", self.password_registro.value or "")
         self.mensaje.text = mensaje
 
-    def mostrar_recuperar(self, widget):
+    def mostrar_recuperar(self, widget=None):
         self.correo_recuperacion = self._campo("Ingresa tu correo electrónico")
         self.codigo_recuperacion = self._campo("Código de 6 dígitos", password=True)
         self.nueva_contrasena = self._campo("Nueva contraseña segura", password=True)

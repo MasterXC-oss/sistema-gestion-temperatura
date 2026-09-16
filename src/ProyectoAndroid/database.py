@@ -101,8 +101,10 @@ def crear_usuario(app, nombre, correo, password):
 def autenticar(app, correo, password):
     ahora = int(time.time())
     with _conexion(app) as conexion:
+        identificador = correo.strip()
         usuario = conexion.execute(
-            "SELECT * FROM usuarios WHERE correo = ?", (correo.strip().lower(),)
+            "SELECT * FROM usuarios WHERE lower(correo) = lower(?) OR lower(nombre) = lower(?)",
+            (identificador, identificador),
         ).fetchone()
         if usuario is None:
             # Mismo mensaje que una contraseña errónea: evita enumerar cuentas.
