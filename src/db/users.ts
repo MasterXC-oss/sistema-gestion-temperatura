@@ -43,21 +43,28 @@ export async function createUser(
 ): Promise<Result> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
+
   if (cleanName.length < 2) {
     return { ok: false, message: 'Escribe un nombre válido.' };
   }
+
   if (!validateEmail(cleanEmail)) {
     return { ok: false, message: 'Escribe un correo válido.' };
   }
+
   const passwordError = validatePassword(password);
+
   if (passwordError) {
     return { ok: false, message: passwordError };
   }
 
   const db = await getDatabase();
+
   const salt = generateSalt();
   const passwordHash = await hashPassword(password, salt);
+
   try {
+    // Crear usuario
     await db.runAsync(
       'INSERT INTO users (name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)',
       cleanName,
@@ -65,11 +72,51 @@ export async function createUser(
       passwordHash,
       salt,
     );
-    return { ok: true, message: 'Cuenta creada. Ya puedes iniciar sesión.' };
-  } catch (error) {
-    if (error instanceof Error && error.message.toLowerCase().includes('unique')) {
-      return { ok: false, message: 'Ese correo ya está registrado.' };
+
+    // Consultar TODOS los datos del usuario recién creado
+    const user = await db.getFirstAsync<{
+      id: number;
+      name: string;
+      email: string;
+      password_hash: string;
+      password_salt: string;
+      reset_code_hash: string | null;
+      reset_code_expires: number | null;
+    }>(
+      'SELECT * FROM users WHERE email = ?',
+      cleanEmail,
+    );
+
+    console.log('\n========== USUARIO CREADO ==========');
+
+    if (user) {
+      console.log(`ID:             ${user.id}`);
+      console.log(`Nombre:         ${user.name}`);
+      console.log(`Correo:         ${user.email}`);
+      console.log(`Password hash:  ${user.password_hash}`);
+      console.log(`Password salt:  ${user.password_salt}`);
+      console.log(`Reset code:     ${user.reset_code_hash ?? 'NULL'}`);
+      console.log(`Reset expires:  ${user.reset_code_expires ?? 'NULL'}`);
     }
+
+    console.log('====================================\n');
+
+    return {
+      ok: true,
+      message: 'Cuenta creada. Ya puedes iniciar sesión.',
+    };
+
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.toLowerCase().includes('unique')
+    ) {
+      return {
+        ok: false,
+        message: 'Ese correo ya está registrado.',
+      };
+    }
+
     throw error;
   }
 }
